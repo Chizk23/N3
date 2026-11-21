@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production build outputs
+dist/
+dist-ssr/
+
+# Local archives
+*.zip
+jlpt-n3.zip
+
+# Gradle & Android local caches
+.gradle/
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/*.iml
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.local

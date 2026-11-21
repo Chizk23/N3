@@ -1,0 +1,32 @@
+{
+  "name": "JLPT N3 - Sổ Tay Ôn Luyện Toàn Diện",
+  "short_name": "JLPT N3",
+  "description": "Ứng dụng học 880 từ Mimikara N3, Từ vựng N3, Ngữ pháp N3 và Thi thử JLPT Offline",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FAFAF8",
+  "theme_color": "#2F4B7C",
+  "categories": ["education", "books"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
