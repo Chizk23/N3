@@ -118,17 +118,34 @@ export const VocabStudy: React.FC<VocabStudyProps> = ({
     ];
   }, [selectedDeck]);
 
-  const availableVocabCount = useMemo(() => {
-    let filtered = vocabList;
-    if (selectedDeck !== 'all') filtered = filtered.filter(v => v.deck === selectedDeck);
-    if (selectedPOS !== 'all') filtered = filtered.filter(v => v.pos === selectedPOS);
+  const filteredVocabList = useMemo(() => {
+    let list = vocabList;
+    if (selectedDeck !== 'all') list = list.filter(v => v.deck === selectedDeck);
+    if (selectedPOS !== 'all') list = list.filter(v => v.pos === selectedPOS);
+    if (minFreq > 0) list = list.filter(v => v.freq >= minFreq);
     if (scopeType === 'range') {
       const min = Math.min(rangeFrom, rangeTo);
       const max = Math.max(rangeFrom, rangeTo);
-      filtered = filtered.filter(v => v.stt >= min && v.stt <= max);
+      list = list.filter(v => v.stt >= min && v.stt <= max);
     }
-    return filtered.length;
-  }, [vocabList, selectedDeck, selectedPOS, scopeType, rangeFrom, rangeTo]);
+    return list;
+  }, [vocabList, selectedDeck, selectedPOS, minFreq, scopeType, rangeFrom, rangeTo]);
+
+  const availableVocabCount = filteredVocabList.length;
+
+  const [setupSearch, setSetupSearch] = useState<string>('');
+
+  const searchedVocabList = useMemo(() => {
+    const term = setupSearch.toLowerCase().trim();
+    if (!term) return filteredVocabList;
+    return filteredVocabList.filter(item => 
+      item.word.toLowerCase().includes(term) ||
+      item.reading.toLowerCase().includes(term) ||
+      item.meaning.toLowerCase().includes(term) ||
+      item.stt.toString() === term ||
+      item.id.toLowerCase().includes(term)
+    );
+  }, [filteredVocabList, setupSearch]);
 
   useEffect(() => {
     setCustomCount(cardsPerSession);
@@ -186,6 +203,32 @@ export const VocabStudy: React.FC<VocabStudyProps> = ({
       alert('Không tìm thấy từ vựng phù hợp với bộ lọc.');
       return;
     }
+
+    setSessionQueue(queue);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    setSelectedOption(null);
+    setIsAnswerSubmitted(false);
+    setTypedInput('');
+    setTypingResult(null);
+    setSessionResults([]);
+    setIsSessionEnded(false);
+    setIsSessionActive(true);
+
+    if (studyMode === 'quiz') {
+      setupQuizQuestion(queue[0], filtered);
+    } else if (studyMode === 'matching') {
+      setupMatchingGame(queue);
+    } else if (studyMode === 'typing') {
+      setCurrentTypingDirection(resolveTypingDirection(typingType));
+    }
+  };
+
+  const startSessionFromItem = (targetItem: VocabItem) => {
+    let filtered = filteredVocabList;
+    const remaining = filtered.filter(v => v.id !== targetItem.id);
+    const countToUse = Math.max(5, customCount);
+    const queue = [targetItem, ...remaining].slice(0, countToUse);
 
     setSessionQueue(queue);
     setCurrentIndex(0);
@@ -737,6 +780,111 @@ export const VocabStudy: React.FC<VocabStudyProps> = ({
               <StarIcon size={16} className="text-amber-500" />
               <span>Ôn thẻ đánh dấu và hay sai</span>
             </button>
+          </div>
+        </div>
+
+        {/* Danh sách từ vựng trong phạm vi đã chọn */}
+        <div className="border border-app-border rounded-2xl bg-app-surface p-5 sm:p-6 space-y-4 shadow-sm animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-app-border pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-app-text text-base">
+                  Danh sách từ vựng
+                </span>
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-app-accent-subtle text-app-accent font-medium">
+                  {filteredVocabList.length} từ phù hợp
+                </span>
+              </div>
+              <p className="text-xs text-app-muted mt-0.5">
+                Xem nhanh nội dung, cách đọc, nghĩa tiếng Việt, hoặc bấm &quot;Học ngay&quot; để bắt đầu từ từ bất kỳ
+              </p>
+            </div>
+
+            <div className="w-full sm:w-64">
+              <input
+                type="text"
+                value={setupSearch}
+                onChange={e => setSetupSearch(e.target.value)}
+                placeholder="Tìm từ vựng, kana, nghĩa..."
+                className="w-full h-9 px-3 rounded-lg border border-app-border bg-app text-xs text-app-text placeholder:text-app-muted focus:outline-none focus:border-app-accent"
+              />
+            </div>
+          </div>
+
+          <div className="max-h-[520px] overflow-y-auto space-y-2 pr-1 overscroll-contain">
+            {searchedVocabList.length === 0 ? (
+              <div className="py-8 text-center text-xs text-app-muted">
+                Không tìm thấy từ vựng nào phù hợp với từ khóa tìm kiếm.
+              </div>
+            ) : (
+              searchedVocabList.map((item) => {
+                const progKey = getProgressKey(item);
+                const isStarred = progressMap[progKey]?.starred;
+                const box = progressMap[progKey]?.box || 0;
+
+                return (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-xl border border-app-border/80 bg-app hover:border-app-accent/60 transition-all flex items-start sm:items-center justify-between gap-3 group"
+                  >
+                    <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+                      <div className="flex flex-col items-center flex-shrink-0">
+                        <span className="text-[11px] font-mono font-bold text-app-muted">
+                          #{item.stt}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onToggleStar(item)}
+                          className={`mt-1 p-1 rounded hover:bg-app-surface transition-colors cursor-pointer ${
+                            isStarred ? 'text-amber-500' : 'text-app-muted/40 hover:text-amber-500'
+                          }`}
+                          title="Đánh dấu sao"
+                        >
+                          <StarIcon size={14} />
+                        </button>
+                      </div>
+
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-jp text-base font-medium text-app-text">
+                            {item.word}
+                          </span>
+                          {item.reading && item.reading !== item.word && (
+                            <span className="text-xs font-jp text-app-accent">
+                              【{item.reading}】
+                            </span>
+                          )}
+                          <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-app-surface border border-app-border text-app-muted">
+                            {item.deck} · {item.pos}
+                          </span>
+                          {box > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              Hộp {box}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-app-muted line-clamp-2">
+                          {item.meaning}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0 self-center">
+                      <AudioButton text={item.word} size="sm" showText={false} />
+                      <button
+                        type="button"
+                        onClick={() => startSessionFromItem(item)}
+                        className="px-2.5 py-1.5 rounded-lg border border-app-border bg-app-surface hover:bg-app-accent hover:text-white text-app-text text-xs font-medium notebook-fade flex items-center gap-1 shadow-sm cursor-pointer"
+                        title="Bắt đầu học từ mục này"
+                      >
+                        <span>Học ngay</span>
+                        <ArrowRightIcon size={12} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>

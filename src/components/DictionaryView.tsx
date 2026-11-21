@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { VocabItem, GrammarItem, MimikaraItem, Progress, VocabPOS, GrammarCategory } from '../types';
 import { getProgressKey } from '../lib/srs';
 import { AudioButton } from './AudioButton';
@@ -245,6 +245,59 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
   const activeList = activeTab === 'vocab' ? filteredVocab : activeTab === 'grammar' ? filteredGrammar : filteredMimikara;
   const totalPages = Math.ceil(activeList.length / pageSize) || 1;
   const paginatedList = activeList.slice((page - 1) * pageSize, page * pageSize);
+
+  const currentDetailIndex = useMemo(() => {
+    if (!selectedDetail) return -1;
+    return activeList.findIndex(item => item.id === selectedDetail.id);
+  }, [selectedDetail, activeList]);
+
+  const handleNextDetail = () => {
+    if (currentDetailIndex >= 0 && currentDetailIndex < activeList.length - 1) {
+      setSelectedDetail(activeList[currentDetailIndex + 1]);
+    }
+  };
+
+  const handlePrevDetail = () => {
+    if (currentDetailIndex > 0) {
+      setSelectedDetail(activeList[currentDetailIndex - 1]);
+    }
+  };
+
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchEndX - touchStartX;
+    if (diff < -50) {
+      handleNextDetail();
+    } else if (diff > 50) {
+      handlePrevDetail();
+    }
+    setTouchStartX(null);
+  };
+
+  useEffect(() => {
+    if (!selectedDetail) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNextDetail();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevDetail();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setSelectedDetail(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedDetail, currentDetailIndex, activeList]);
 
   const handleTabChange = (tab: 'vocab' | 'grammar' | 'mimikara') => {
     setActiveTab(tab);
@@ -753,35 +806,94 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
 
       {/* Item Detail Modal */}
       {selectedDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="bg-app-surface border border-app-border rounded-2xl w-full max-w-xl max-h-[88vh] overflow-y-auto p-6 sm:p-8 space-y-5 shadow-2xl notebook-fade">
-            
-            {/* Modal Header */}
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs uppercase tracking-wider text-app-muted font-medium">
-                    {'word' in selectedDetail 
-                      ? `Bộ ${selectedDetail.deck} · ${selectedDetail.pos} · #${selectedDetail.stt} · Xuất hiện ${selectedDetail.freq} lần` 
-                      : 'hanViet' in selectedDetail 
-                      ? `Mimikara Oboeru N3 · #${selectedDetail.stt}` 
-                      : `${selectedDetail.category} · #${selectedDetail.stt} · Xuất hiện ${selectedDetail.freq} lần`}
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm p-3 sm:p-6 flex min-h-full items-center justify-center animate-fade-in"
+          onClick={() => setSelectedDetail(null)}
+        >
+          <div 
+            className="bg-app-surface border border-app-border rounded-2xl w-full max-w-xl max-h-[85vh] sm:max-h-[88vh] flex flex-col shadow-2xl notebook-fade my-auto overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* Modal Sticky Header */}
+            <div className="p-4 sm:p-5 border-b border-app-border flex-shrink-0 bg-app-surface/95 backdrop-blur-sm space-y-3">
+              <div className="flex items-center justify-between">
+                {/* Prev / Next controls */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePrevDetail}
+                    disabled={currentDetailIndex <= 0}
+                    className="px-2.5 py-1.5 rounded-lg border border-app-border bg-app hover:bg-app-surface text-app-text disabled:opacity-30 disabled:pointer-events-none flex items-center gap-1 text-xs font-medium cursor-pointer shadow-sm transition-all"
+                    title="Mục trước (Phím ← hoặc vuốt phải)"
+                  >
+                    <ArrowLeftIcon size={14} />
+                    <span className="hidden xs:inline">Trước</span>
+                  </button>
+                  <span className="text-xs font-mono font-medium text-app-accent px-2 py-1 rounded bg-app border border-app-border/60">
+                    {currentDetailIndex >= 0 ? currentDetailIndex + 1 : 1} / {activeList.length}
                   </span>
-
-                  {'unit' in selectedDetail && (selectedDetail as MimikaraItem).unit && (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 font-jp">
-                      {(selectedDetail as MimikaraItem).unit}
-                    </span>
-                  )}
-
-                  {'usage' in selectedDetail && (selectedDetail as MimikaraItem).usage && (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
-                      {(selectedDetail as MimikaraItem).usage}
-                    </span>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleNextDetail}
+                    disabled={currentDetailIndex >= activeList.length - 1}
+                    className="px-2.5 py-1.5 rounded-lg border border-app-border bg-app hover:bg-app-surface text-app-text disabled:opacity-30 disabled:pointer-events-none flex items-center gap-1 text-xs font-medium cursor-pointer shadow-sm transition-all"
+                    title="Mục sau (Phím → hoặc vuốt trái)"
+                  >
+                    <span className="hidden xs:inline">Sau</span>
+                    <ArrowRightIcon size={14} />
+                  </button>
                 </div>
 
-                <div className="text-2xl sm:text-3xl font-jp font-normal text-app-text mt-2 leading-snug">
+                <div className="flex items-center gap-2">
+                  <AudioButton 
+                    text={
+                      'word' in selectedDetail 
+                        ? selectedDetail.word 
+                        : 'hanViet' in selectedDetail 
+                        ? ((selectedDetail as MimikaraItem).kanji || (selectedDetail as MimikaraItem).reading) 
+                        : selectedDetail.pattern
+                    } 
+                    size="md" 
+                    showText={false} 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDetail(null)}
+                    className="p-1.5 rounded-lg border border-app-border hover:border-app-muted text-app-muted hover:text-app-text cursor-pointer transition-all"
+                    title="Đóng (Phím Esc)"
+                  >
+                    <CloseIcon size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Title & tags */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs uppercase tracking-wider text-app-muted font-medium">
+                  {'word' in selectedDetail 
+                    ? `Bộ ${selectedDetail.deck} · ${selectedDetail.pos} · #${selectedDetail.stt} · Xuất hiện ${selectedDetail.freq} lần` 
+                    : 'hanViet' in selectedDetail 
+                    ? `Mimikara Oboeru N3 · #${selectedDetail.stt}` 
+                    : `${selectedDetail.category} · #${selectedDetail.stt} · Xuất hiện ${selectedDetail.freq} lần`}
+                </span>
+
+                {'unit' in selectedDetail && (selectedDetail as MimikaraItem).unit && (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 font-jp">
+                    {(selectedDetail as MimikaraItem).unit}
+                  </span>
+                )}
+
+                {'usage' in selectedDetail && (selectedDetail as MimikaraItem).usage && (
+                  <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                    {(selectedDetail as MimikaraItem).usage}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <div className="text-2xl sm:text-3xl font-jp font-medium text-app-text leading-snug">
                   {'word' in selectedDetail 
                     ? selectedDetail.word 
                     : 'hanViet' in selectedDetail 
@@ -790,273 +902,273 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                 </div>
 
                 {'reading' in selectedDetail && (
-                  <div className="text-base font-jp font-normal text-app-accent mt-0.5">
+                  <div className="text-base font-jp font-normal text-app-accent">
                     【{(selectedDetail as any).reading}】
                   </div>
                 )}
               </div>
-
-              <div className="flex items-center gap-2">
-                <AudioButton 
-                  text={
-                    'word' in selectedDetail 
-                      ? selectedDetail.word 
-                      : 'hanViet' in selectedDetail 
-                      ? ((selectedDetail as MimikaraItem).kanji || (selectedDetail as MimikaraItem).reading) 
-                      : selectedDetail.pattern
-                  } 
-                  size="md" 
-                  showText={false} 
-                />
-                <button
-                  type="button"
-                  onClick={() => setSelectedDetail(null)}
-                  className="p-2 rounded-lg border border-app-border hover:border-app-muted text-app-muted hover:text-app-text"
-                >
-                  <CloseIcon size={18} />
-                </button>
-              </div>
             </div>
 
-            {/* ÂM HÁN VIỆT */}
-            {'hanViet' in selectedDetail && (selectedDetail as MimikaraItem).hanViet && (
-              <div className="pt-4 border-t border-app-border space-y-1">
-                <div className="text-xs uppercase tracking-wider text-app-muted font-medium">ÂM HÁN VIỆT</div>
-                <div className="inline-block px-3 py-1 rounded-lg text-sm font-semibold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                  {(selectedDetail as MimikaraItem).hanViet}
-                </div>
-              </div>
-            )}
-
-            {/* Ý NGHĨA */}
-            <div className="pt-4 border-t border-app-border space-y-1">
-              <div className="text-xs uppercase tracking-wider text-app-muted font-medium">Ý NGHĨA</div>
-              <div className="text-base text-app-text leading-relaxed">{selectedDetail.meaning}</div>
-            </div>
-
-            {/* MIMIKARA: Collocations (Cụm từ liên kết / Đi kèm) */}
-            {'collocations' in selectedDetail && (selectedDetail as MimikaraItem).collocations && (selectedDetail as MimikaraItem).collocations!.length > 0 && (
-              <div className="pt-4 border-t border-app-border space-y-2">
-                <div className="text-xs uppercase tracking-wider text-teal-700 dark:text-teal-400 font-semibold">
-                  CỤM TỪ LIÊN KẾT / ĐI KÈM (COLLOCATIONS)
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(selectedDetail as MimikaraItem).collocations!.map((col, idx) => (
-                    <span
-                      key={idx}
-                      className="text-xs sm:text-sm px-3 py-1 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 text-teal-900 dark:text-teal-200 font-jp"
-                    >
-                      {col}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* MIMIKARA: Compounds (Từ ghép) */}
-            {'compounds' in selectedDetail && (selectedDetail as MimikaraItem).compounds && (selectedDetail as MimikaraItem).compounds!.length > 0 && (
-              <div className="pt-4 border-t border-app-border space-y-2">
-                <div className="text-xs uppercase tracking-wider text-blue-700 dark:text-blue-400 font-semibold">
-                  TỪ GHÉP (COMPOUNDS)
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(selectedDetail as MimikaraItem).compounds!.map((comp, idx) => (
-                    <span
-                      key={idx}
-                      className="text-xs sm:text-sm px-3 py-1 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 font-jp"
-                    >
-                      {comp}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* MIMIKARA: Synonyms / Antonyms / Related */}
-            {'hanViet' in selectedDetail && (() => {
-              const m = selectedDetail as MimikaraItem;
-              const hasSyn = m.synonyms && m.synonyms.length > 0;
-              const hasAnt = m.antonyms && m.antonyms.length > 0;
-              const hasRel = m.related && m.related.length > 0;
-
-              if (!hasSyn && !hasAnt && !hasRel) return null;
-
-              return (
-                <div className="pt-4 border-t border-app-border space-y-3">
-                  {hasSyn && (
-                    <div className="space-y-1.5">
-                      <div className="text-xs uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-semibold">
-                        TỪ ĐỒNG NGHĨA (SYNONYMS)
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {m.synonyms!.map((s, idx) => (
-                          <span
-                            key={idx}
-                            className="text-xs sm:text-sm px-2.5 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-jp"
-                          >
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {hasAnt && (
-                    <div className="space-y-1.5">
-                      <div className="text-xs uppercase tracking-wider text-rose-700 dark:text-rose-400 font-semibold">
-                        TỪ TRÁI NGHĨA (ANTONYMS)
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {m.antonyms!.map((a, idx) => (
-                          <span
-                            key={idx}
-                            className="text-xs sm:text-sm px-2.5 py-0.5 rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-200 font-jp"
-                          >
-                            {a}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {hasRel && (
-                    <div className="space-y-1.5">
-                      <div className="text-xs uppercase tracking-wider text-purple-700 dark:text-purple-400 font-semibold">
-                        TỪ LIÊN QUAN (RELATED)
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {m.related!.map((r, idx) => (
-                          <span
-                            key={idx}
-                            className="text-xs sm:text-sm px-2.5 py-0.5 rounded-md border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 text-purple-900 dark:text-purple-200 font-jp"
-                          >
-                            {r}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* GRAMMAR: FORMATION & CONTEXT */}
-            {'formation' in selectedDetail && (
-              <>
-                <div className="pt-4 border-t border-app-border space-y-1.5">
-                  <div className="text-xs uppercase tracking-wider text-app-muted font-medium">CÁCH GHÉP (KIỂU V)</div>
-                  <div className="font-mono text-sm text-app-text bg-app p-3 rounded-lg border border-app-border">
-                    {(selectedDetail as GrammarItem).formation}
+            {/* Scrollable Body */}
+            <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-5 overscroll-contain">
+              {/* ÂM HÁN VIỆT */}
+              {'hanViet' in selectedDetail && (selectedDetail as MimikaraItem).hanViet && (
+                <div className="space-y-1">
+                  <div className="text-xs uppercase tracking-wider text-app-muted font-medium">ÂM HÁN VIỆT</div>
+                  <div className="inline-block px-3 py-1 rounded-lg text-sm font-semibold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    {(selectedDetail as MimikaraItem).hanViet}
                   </div>
                 </div>
+              )}
 
-                <div className="pt-4 border-t border-app-border space-y-1">
-                  <div className="text-xs uppercase tracking-wider text-app-muted font-medium">BỐI CẢNH SỬ DỤNG</div>
-                  <div className="text-sm text-app-muted leading-relaxed">
-                    {(selectedDetail as GrammarItem).context}
+              {/* Ý NGHĨA */}
+              <div className="space-y-1">
+                <div className="text-xs uppercase tracking-wider text-app-muted font-medium">Ý NGHĨA</div>
+                <div className="text-base text-app-text leading-relaxed">{selectedDetail.meaning}</div>
+              </div>
+
+              {/* MIMIKARA: Collocations (Cụm từ liên kết / Đi kèm) */}
+              {'collocations' in selectedDetail && (selectedDetail as MimikaraItem).collocations && (selectedDetail as MimikaraItem).collocations!.length > 0 && (
+                <div className="pt-3 border-t border-app-border space-y-2">
+                  <div className="text-xs uppercase tracking-wider text-teal-700 dark:text-teal-400 font-semibold">
+                    CỤM TỪ LIÊN KẾT / ĐI KÈM (COLLOCATIONS)
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedDetail as MimikaraItem).collocations!.map((col, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs sm:text-sm px-3 py-1 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 text-teal-900 dark:text-teal-200 font-jp"
+                      >
+                        {col}
+                      </span>
+                    ))}
                   </div>
                 </div>
-              </>
-            )}
+              )}
 
-            {/* GRAMMAR: CONFUSABLES */}
-            {'confusables' in selectedDetail && (selectedDetail as GrammarItem).confusables && (selectedDetail as GrammarItem).confusables.length > 0 && (
-              <div className="pt-4 border-t border-app-border space-y-2">
-                <div className="text-xs uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1.5">
-                  <AlertCircleIcon size={14} />
-                  <span>CẨN THẬN DỄ NHẦM LẪN VỚI</span>
+              {/* MIMIKARA: Compounds (Từ ghép) */}
+              {'compounds' in selectedDetail && (selectedDetail as MimikaraItem).compounds && (selectedDetail as MimikaraItem).compounds!.length > 0 && (
+                <div className="pt-3 border-t border-app-border space-y-2">
+                  <div className="text-xs uppercase tracking-wider text-blue-700 dark:text-blue-400 font-semibold">
+                    TỪ GHÉP (COMPOUNDS)
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedDetail as MimikaraItem).compounds!.map((comp, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs sm:text-sm px-3 py-1 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 font-jp"
+                      >
+                        {comp}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {(selectedDetail as GrammarItem).confusables.map((conf, idx) => (
-                    <span
-                      key={idx}
-                      className="text-xs sm:text-sm px-3 py-1 rounded-lg border border-amber-300/60 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 font-jp"
-                    >
-                      {conf}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* MIMIKARA: EXAMPLES */}
-            {'examples' in selectedDetail && (selectedDetail as MimikaraItem).examples && (selectedDetail as MimikaraItem).examples!.length > 0 && (
-              <div className="pt-4 border-t border-app-border space-y-3">
-                <div className="text-xs uppercase tracking-wider text-app-muted font-medium">
-                  CÂU VÍ DỤ SONG NGỮ ({(selectedDetail as MimikaraItem).examples!.length} CÂU)
-                </div>
-                <div className="space-y-3">
-                  {(selectedDetail as MimikaraItem).examples!.map((ex, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3.5 rounded-xl border border-app-border bg-app space-y-2"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="font-jp text-base sm:text-lg text-app-text font-normal leading-relaxed">
-                          {ex.jp}
+              {/* MIMIKARA: Synonyms / Antonyms / Related */}
+              {'hanViet' in selectedDetail && (() => {
+                const m = selectedDetail as MimikaraItem;
+                const hasSyn = m.synonyms && m.synonyms.length > 0;
+                const hasAnt = m.antonyms && m.antonyms.length > 0;
+                const hasRel = m.related && m.related.length > 0;
+
+                if (!hasSyn && !hasAnt && !hasRel) return null;
+
+                return (
+                  <div className="pt-3 border-t border-app-border space-y-3">
+                    {hasSyn && (
+                      <div className="space-y-1.5">
+                        <div className="text-xs uppercase tracking-wider text-emerald-700 dark:text-emerald-400 font-semibold">
+                          TỪ ĐỒNG NGHĨA (SYNONYMS)
                         </div>
-                        <AudioButton text={ex.jp} size="sm" showText={false} />
+                        <div className="flex flex-wrap gap-2">
+                          {m.synonyms!.map((s, idx) => (
+                            <span
+                              key={idx}
+                              className="text-xs sm:text-sm px-2.5 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 font-jp"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      {ex.reading && ex.reading !== ex.jp && (
-                        <div className="text-xs font-jp text-app-accent">
-                          {ex.reading}
-                        </div>
-                      )}
-                      {ex.vi && (
-                        <div className="text-xs sm:text-sm text-app-muted leading-relaxed">
-                          {ex.vi}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                    )}
 
-            {/* VOCAB / GRAMMAR: SINGLE EXAMPLE */}
-            {('exampleJa' in selectedDetail) && (selectedDetail as VocabItem | GrammarItem).exampleJa && (() => {
-              let exJa = (selectedDetail as VocabItem | GrammarItem).exampleJa || '';
-              let exVi = (selectedDetail as VocabItem | GrammarItem).exampleVi || '';
-              if (exJa.endsWith('。T') && exVi.startsWith('ôi')) {
-                exJa = exJa.slice(0, -1);
-                exVi = 'T' + exVi;
-              }
-              return (
-                <div className="pt-4 border-t border-app-border space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs uppercase tracking-wider text-app-muted font-medium">VÍ DỤ VÀ DỊCH NGHĨA</span>
-                    <AudioButton text={exJa} size="sm" showText={true} />
+                    {hasAnt && (
+                      <div className="space-y-1.5">
+                        <div className="text-xs uppercase tracking-wider text-rose-700 dark:text-rose-400 font-semibold">
+                          TỪ TRÁI NGHĨA (ANTONYMS)
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {m.antonyms!.map((a, idx) => (
+                            <span
+                              key={idx}
+                              className="text-xs sm:text-sm px-2.5 py-0.5 rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-200 font-jp"
+                            >
+                              {a}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {hasRel && (
+                      <div className="space-y-1.5">
+                        <div className="text-xs uppercase tracking-wider text-purple-700 dark:text-purple-400 font-semibold">
+                          TỪ LIÊN QUAN (RELATED)
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {m.related!.map((r, idx) => (
+                            <span
+                              key={idx}
+                              className="text-xs sm:text-sm px-2.5 py-0.5 rounded-md border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 text-purple-900 dark:text-purple-200 font-jp"
+                            >
+                              {r}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="font-jp font-normal text-lg text-app-text leading-relaxed">
-                    {exJa}
+                );
+              })()}
+
+              {/* GRAMMAR: FORMATION & CONTEXT */}
+              {'formation' in selectedDetail && (
+                <>
+                  <div className="pt-3 border-t border-app-border space-y-1.5">
+                    <div className="text-xs uppercase tracking-wider text-app-muted font-medium">CÁCH GHÉP (KIỂU V)</div>
+                    <div className="font-mono text-sm text-app-text bg-app p-3 rounded-lg border border-app-border">
+                      {(selectedDetail as GrammarItem).formation}
+                    </div>
                   </div>
-                  {exVi && (
+
+                  <div className="pt-3 border-t border-app-border space-y-1">
+                    <div className="text-xs uppercase tracking-wider text-app-muted font-medium">BỐI CẢNH SỬ DỤNG</div>
                     <div className="text-sm text-app-muted leading-relaxed">
-                      {exVi}
+                      {(selectedDetail as GrammarItem).context}
                     </div>
-                  )}
-                </div>
-              );
-            })()}
+                  </div>
+                </>
+              )}
 
-            {/* Modal Bottom Actions */}
-            <div className="pt-4 border-t border-app-border flex items-center justify-between">
+              {/* GRAMMAR: CONFUSABLES */}
+              {'confusables' in selectedDetail && (selectedDetail as GrammarItem).confusables && (selectedDetail as GrammarItem).confusables.length > 0 && (
+                <div className="pt-3 border-t border-app-border space-y-2">
+                  <div className="text-xs uppercase tracking-wider text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1.5">
+                    <AlertCircleIcon size={14} />
+                    <span>CẨN THẬN DỄ NHẦM LẪN VỚI</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedDetail as GrammarItem).confusables.map((conf, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs sm:text-sm px-3 py-1 rounded-lg border border-amber-300/60 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 font-jp"
+                      >
+                        {conf}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* MIMIKARA: EXAMPLES */}
+              {'examples' in selectedDetail && (selectedDetail as MimikaraItem).examples && (selectedDetail as MimikaraItem).examples!.length > 0 && (
+                <div className="pt-3 border-t border-app-border space-y-3">
+                  <div className="text-xs uppercase tracking-wider text-app-muted font-medium">
+                    CÂU VÍ DỤ SONG NGỮ ({(selectedDetail as MimikaraItem).examples!.length} CÂU)
+                  </div>
+                  <div className="space-y-3">
+                    {(selectedDetail as MimikaraItem).examples!.map((ex, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3.5 rounded-xl border border-app-border bg-app space-y-2"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="font-jp text-base sm:text-lg text-app-text font-normal leading-relaxed">
+                            {ex.jp}
+                          </div>
+                          <AudioButton text={ex.jp} size="sm" showText={false} />
+                        </div>
+                        {ex.reading && ex.reading !== ex.jp && (
+                          <div className="text-xs font-jp text-app-accent">
+                            {ex.reading}
+                          </div>
+                        )}
+                        {ex.vi && (
+                          <div className="text-xs sm:text-sm text-app-muted leading-relaxed">
+                            {ex.vi}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* VOCAB / GRAMMAR: SINGLE EXAMPLE */}
+              {('exampleJa' in selectedDetail) && (selectedDetail as VocabItem | GrammarItem).exampleJa && (() => {
+                let exJa = (selectedDetail as VocabItem | GrammarItem).exampleJa || '';
+                let exVi = (selectedDetail as VocabItem | GrammarItem).exampleVi || '';
+                if (exJa.endsWith('。T') && exVi.startsWith('ôi')) {
+                  exJa = exJa.slice(0, -1);
+                  exVi = 'T' + exVi;
+                }
+                return (
+                  <div className="pt-3 border-t border-app-border space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs uppercase tracking-wider text-app-muted font-medium">VÍ DỤ VÀ DỊCH NGHĨA</span>
+                      <AudioButton text={exJa} size="sm" showText={true} />
+                    </div>
+                    <div className="font-jp font-normal text-lg text-app-text leading-relaxed">
+                      {exJa}
+                    </div>
+                    {exVi && (
+                      <div className="text-sm text-app-muted leading-relaxed">
+                        {exVi}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Sticky Bottom Actions */}
+            <div className="p-3.5 sm:p-4 border-t border-app-border flex-shrink-0 flex items-center justify-between bg-app-surface/95 backdrop-blur-sm">
               <button
                 type="button"
                 onClick={(e) => handleDeleteItem(e, selectedDetail)}
-                className="flex items-center gap-1.5 text-xs text-app-error hover:underline font-medium"
+                className="flex items-center gap-1.5 text-xs text-app-error hover:underline font-medium cursor-pointer"
               >
                 <TrashIcon size={15} />
-                <span>Xoá mục này</span>
+                <span>Xoá</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setSelectedDetail(null)}
-                className="h-11 px-6 rounded-xl bg-app-accent text-white text-xs font-medium hover:opacity-90"
-              >
-                Đóng
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrevDetail}
+                  disabled={currentDetailIndex <= 0}
+                  className="px-3 py-1.5 rounded-xl border border-app-border bg-app hover:bg-app-surface text-app-text disabled:opacity-30 disabled:pointer-events-none text-xs font-medium cursor-pointer transition-all"
+                >
+                  ← Trước
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextDetail}
+                  disabled={currentDetailIndex >= activeList.length - 1}
+                  className="px-3 py-1.5 rounded-xl border border-app-border bg-app hover:bg-app-surface text-app-text disabled:opacity-30 disabled:pointer-events-none text-xs font-medium cursor-pointer transition-all"
+                >
+                  Sau →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDetail(null)}
+                  className="h-9 px-5 rounded-xl bg-app-accent text-white text-xs font-medium hover:opacity-90 cursor-pointer shadow-sm"
+                >
+                  Đóng
+                </button>
+              </div>
             </div>
           </div>
         </div>
