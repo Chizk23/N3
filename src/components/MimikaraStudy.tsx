@@ -189,10 +189,16 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
   // Start study session
   const startSession = () => {
     if (filteredItems.length === 0) return;
-    const count = Math.min(customCount || 20, filteredItems.length);
-    const shuffled = shuffle([...filteredItems]).slice(0, count);
+    let queue: MimikaraItem[] = [];
+    if (scopeMode === 'range') {
+      // Khi chọn theo khoảng STT: học TOÀN BỘ các từ trong khoảng đó theo đúng thứ tự STT
+      queue = [...filteredItems].sort((a, b) => a.stt - b.stt);
+    } else {
+      const count = Math.min(customCount || 20, filteredItems.length);
+      queue = shuffle([...filteredItems]).slice(0, count);
+    }
 
-    setSessionQueue(shuffled);
+    setSessionQueue(queue);
     setCurrentIndex(0);
     setIsFlipped(false);
     setSessionStats({ correct: 0, wrong: 0 });
@@ -930,34 +936,36 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                 </div>
               </div>
 
-              {/* Count selection */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-semibold text-app-muted uppercase tracking-wider">
-                  <span>3. Số lượng từ mỗi phiên</span>
-                  <span className="text-app-accent normal-case font-medium">
-                    (Có {filteredItems.length} từ phù hợp phạm vi)
-                  </span>
+              {/* Count selection (chỉ hiện khi không chọn theo khoảng STT) */}
+              {scopeMode !== 'range' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-app-muted uppercase tracking-wider">
+                    <span>3. Số lượng từ mỗi phiên</span>
+                    <span className="text-app-accent normal-case font-medium">
+                      (Có {filteredItems.length} từ phù hợp phạm vi)
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[10, 20, 30, 50].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => {
+                          setCustomCount(num);
+                          if (onUpdateCardsPerSession) onUpdateCardsPerSession(num);
+                        }}
+                        className={`py-2 rounded-lg border text-xs font-medium text-center transition-all ${
+                          customCount === num
+                            ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
+                            : 'border-app-border bg-app hover:border-app-muted text-app-muted hover:text-app-text'
+                        }`}
+                      >
+                        {num} từ
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {[10, 20, 30, 50].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => {
-                        setCustomCount(num);
-                        if (onUpdateCardsPerSession) onUpdateCardsPerSession(num);
-                      }}
-                      className={`py-2 rounded-lg border text-xs font-medium text-center transition-all ${
-                        customCount === num
-                          ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
-                          : 'border-app-border bg-app hover:border-app-muted text-app-muted hover:text-app-text'
-                      }`}
-                    >
-                      {num} từ
-                    </button>
-                  ))}
-                </div>
-              </div>
+              )}
 
               {/* Action Start */}
               <div className="pt-2">
@@ -967,7 +975,12 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                   disabled={filteredItems.length === 0}
                   className="w-full py-3.5 px-6 rounded-xl bg-app-accent text-white text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Bắt đầu học ({Math.min(customCount, filteredItems.length)} từ)</span>
+                  <span>
+                    {scopeMode === 'range'
+                      ? `Bắt đầu học (${filteredItems.length} từ: STT ${Math.min(rangeFrom, rangeTo)} - ${Math.max(rangeFrom, rangeTo)})`
+                      : `Bắt đầu học (${Math.min(customCount, filteredItems.length)} từ)`
+                    }
+                  </span>
                   <ArrowRightIcon size={16} />
                 </button>
               </div>

@@ -183,24 +183,25 @@ export const VocabStudy: React.FC<VocabStudyProps> = ({
   const [showSessionList, setShowSessionList] = useState<boolean>(true);
 
   const startSession = (onlyLeechOrStarred = false) => {
-    let filtered = vocabList;
-    if (selectedDeck !== 'all') {
-      filtered = filtered.filter(v => v.deck === selectedDeck);
-    }
-    if (selectedPOS !== 'all') {
-      filtered = filtered.filter(v => v.pos === selectedPOS);
-    }
-    if (scopeType === 'range') {
-      const min = Math.min(rangeFrom, rangeTo);
-      const max = Math.max(rangeFrom, rangeTo);
-      filtered = filtered.filter(v => v.stt >= min && v.stt <= max);
-    }
+    let filtered = filteredVocabList;
 
-    const countToUse = customCount > 0 ? customCount : 20;
-    const queue = buildStudyQueue(filtered, progressMap, countToUse, minFreq, onlyLeechOrStarred);
+    let queue: VocabItem[] = [];
+    if (scopeType === 'range') {
+      // Khi chọn theo khoảng STT: học TOÀN BỘ các từ trong khoảng đó theo đúng thứ tự STT
+      queue = onlyLeechOrStarred
+        ? filtered.filter(v => {
+            const p = progressMap[getProgressKey(v)];
+            return p?.starred || p?.leech;
+          })
+        : [...filtered];
+      queue.sort((a, b) => a.stt - b.stt);
+    } else {
+      const countToUse = customCount > 0 ? customCount : 20;
+      queue = buildStudyQueue(filtered, progressMap, countToUse, minFreq, onlyLeechOrStarred);
+    }
 
     if (queue.length === 0) {
-      alert('Không tìm thấy từ vựng phù hợp với bộ lọc.');
+      alert('Không tìm thấy từ vựng phù hợp trong phạm vi đã chọn.');
       return;
     }
 
@@ -684,98 +685,86 @@ export const VocabStudy: React.FC<VocabStudyProps> = ({
             )}
           </div>
 
-          {/* Card Count Selector */}
-          <div className="space-y-2 pt-2 border-t border-app-border/40">
-            <div className="flex items-center justify-between">
-              <span className="text-xs sm:text-sm text-app-muted font-medium">Số lượng từ muốn học phiên này</span>
-              <span className="text-xs text-app-accent font-medium">Đang chọn: {customCount} từ</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {[10, 20, 30, 50].map(cnt => (
+          {/* Card Count Selector (chỉ hiện khi học Toàn bộ danh sách, không hiện khi chọn theo khoảng STT) */}
+          {scopeType !== 'range' && (
+            <div className="space-y-2 pt-2 border-t border-app-border/40">
+              <div className="flex items-center justify-between">
+                <span className="text-xs sm:text-sm text-app-muted font-medium">Số lượng từ muốn học phiên này</span>
+                <span className="text-xs text-app-accent font-medium">Đang chọn: {customCount} từ</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {[10, 20, 30, 50].map(cnt => (
+                  <button
+                    key={cnt}
+                    type="button"
+                    onClick={() => {
+                      setCustomCount(cnt);
+                      if (onUpdateCardsPerSession) onUpdateCardsPerSession(cnt);
+                    }}
+                    className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm border notebook-fade ${
+                      customCount === cnt
+                        ? 'border-app-accent bg-app-accent text-white font-medium shadow-sm'
+                        : 'border-app-border bg-app hover:border-app-text text-app-text'
+                    }`}
+                  >
+                    {cnt} từ
+                  </button>
+                ))}
+
                 <button
-                  key={cnt}
                   type="button"
                   onClick={() => {
-                    setCustomCount(cnt);
-                    if (onUpdateCardsPerSession) onUpdateCardsPerSession(cnt);
+                    const allCount = vocabList.length;
+                    setCustomCount(allCount);
+                    if (onUpdateCardsPerSession) onUpdateCardsPerSession(allCount);
                   }}
                   className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm border notebook-fade ${
-                    customCount === cnt
+                    customCount >= vocabList.length
                       ? 'border-app-accent bg-app-accent text-white font-medium shadow-sm'
                       : 'border-app-border bg-app hover:border-app-text text-app-text'
                   }`}
                 >
-                  {cnt} từ
+                  Tất cả ({vocabList.length})
                 </button>
-              ))}
 
-              <button
-                type="button"
-                onClick={() => {
-                  const allCount = vocabList.length;
-                  setCustomCount(allCount);
-                  if (onUpdateCardsPerSession) onUpdateCardsPerSession(allCount);
-                }}
-                className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm border notebook-fade ${
-                  customCount >= vocabList.length
-                    ? 'border-app-accent bg-app-accent text-white font-medium shadow-sm'
-                    : 'border-app-border bg-app hover:border-app-text text-app-text'
-                }`}
-              >
-                Tất cả ({vocabList.length})
-              </button>
-
-              {scopeType === 'range' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustomCount(availableVocabCount);
-                    if (onUpdateCardsPerSession) onUpdateCardsPerSession(availableVocabCount);
-                  }}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm border notebook-fade ${
-                    customCount === availableVocabCount
-                      ? 'border-app-accent bg-app-accent text-white font-medium shadow-sm'
-                      : 'border-app-border bg-app hover:border-app-text text-app-text'
-                  }`}
-                >
-                  Toàn bộ trong khoảng ({availableVocabCount})
-                </button>
-              )}
-
-              <div className="flex items-center gap-1.5 pl-2">
-                <span className="text-xs text-app-muted">Hoặc tự nhập:</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={1500}
-                  value={customCount}
-                  onChange={e => {
-                    const val = parseInt(e.target.value, 10);
-                    const safe = isNaN(val) ? 1 : Math.max(1, Math.min(1500, val));
-                    setCustomCount(safe);
-                    if (onUpdateCardsPerSession) onUpdateCardsPerSession(safe);
-                  }}
-                  style={{ color: 'var(--color-text)' }}
-                  className="w-20 h-10 px-2 text-center text-sm font-medium rounded-xl border border-app-border bg-app text-app-text focus:outline-none focus:border-app-accent shadow-sm"
-                />
-                <span className="text-xs text-app-muted">từ</span>
+                <div className="flex items-center gap-1.5 pl-2">
+                  <span className="text-xs text-app-muted">Hoặc tự nhập:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1500}
+                    value={customCount}
+                    onChange={e => {
+                      const val = parseInt(e.target.value, 10);
+                      const safe = isNaN(val) ? 1 : Math.max(1, Math.min(1500, val));
+                      setCustomCount(safe);
+                      if (onUpdateCardsPerSession) onUpdateCardsPerSession(safe);
+                    }}
+                    style={{ color: 'var(--color-text)' }}
+                    className="w-20 h-10 px-2 text-center text-sm font-medium rounded-xl border border-app-border bg-app text-app-text focus:outline-none focus:border-app-accent shadow-sm"
+                  />
+                  <span className="text-xs text-app-muted">từ</span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
             <button
               type="button"
               onClick={() => startSession(false)}
-              className="w-full sm:flex-1 h-12 px-6 rounded-xl bg-app-accent text-white text-sm font-medium hover:opacity-90 notebook-fade shadow-sm"
+              className="w-full sm:flex-1 h-12 px-6 rounded-xl bg-app-accent text-white text-sm font-medium hover:opacity-90 notebook-fade shadow-sm cursor-pointer"
             >
-              Bắt đầu phiên học ({customCount} từ)
+              {scopeType === 'range'
+                ? `Bắt đầu học (${filteredVocabList.length} từ: STT ${Math.min(rangeFrom, rangeTo)} - ${Math.max(rangeFrom, rangeTo)})`
+                : `Bắt đầu phiên học (${customCount} từ)`
+              }
             </button>
 
             <button
               type="button"
               onClick={() => startSession(true)}
-              className="w-full sm:w-auto h-12 px-5 rounded-xl border border-app-border hover:border-app-text text-app-text text-xs sm:text-sm font-medium notebook-fade flex items-center justify-center gap-2 bg-app-surface"
+              className="w-full sm:w-auto h-12 px-5 rounded-xl border border-app-border hover:border-app-text text-app-text text-xs sm:text-sm font-medium notebook-fade flex items-center justify-center gap-2 bg-app-surface cursor-pointer"
             >
               <StarIcon size={16} className="text-amber-500" />
               <span>Ôn thẻ đánh dấu và hay sai</span>
