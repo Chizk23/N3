@@ -1,26 +1,26 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  MimikaraItem, 
-  StudyModeMimikara, 
+import {
+  MimikaraItem,
+  StudyModeMimikara,
   Progress,
-  QuizQuestion 
+  QuizQuestion
 } from '../types';
-import { 
-  updateProgress, 
-  getProgressKey, 
-  createInitialProgress 
+import {
+  updateProgress,
+  getProgressKey,
+  createInitialProgress
 } from '../lib/srs';
 import { shuffle, checkVietnameseAnswer } from '../lib/quiz';
 import { checkJapaneseAnswer } from '../lib/kana';
 import { AudioButton } from './AudioButton';
 import { KanaInput } from './KanaInput';
-import { 
-  StarIcon, 
-  ArrowLeftIcon, 
-  ArrowRightIcon, 
-  CheckIcon, 
-  CloseIcon, 
-  FilterIcon, 
+import {
+  StarIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CheckIcon,
+  CloseIcon,
+  FilterIcon,
   RefreshIcon,
   SearchIcon,
   TrashIcon,
@@ -159,7 +159,7 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
     const q = searchQuery.trim().toLowerCase();
     if (!q) return filteredItems;
     return filteredItems.filter((it) => {
-      const matchBasic = 
+      const matchBasic =
         it.kanji.toLowerCase().includes(q) ||
         it.reading.toLowerCase().includes(q) ||
         it.hanViet.toLowerCase().includes(q) ||
@@ -211,9 +211,16 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
   };
 
   const startSessionFromItem = (targetItem: MimikaraItem) => {
-    const remaining = filteredItems.filter(it => it.id !== targetItem.id);
-    const count = Math.min(customCount || 20, filteredItems.length);
-    const queue = [targetItem, ...remaining].slice(0, count);
+    let queue: MimikaraItem[] = [];
+    if (scopeMode === 'range') {
+      const after = filteredItems.filter(it => it.stt >= targetItem.stt).sort((a, b) => a.stt - b.stt);
+      const before = filteredItems.filter(it => it.stt < targetItem.stt).sort((a, b) => a.stt - b.stt);
+      queue = [...after, ...before];
+    } else {
+      const remaining = filteredItems.filter(it => it.id !== targetItem.id);
+      const count = Math.min(customCount || 20, filteredItems.length);
+      queue = [targetItem, ...remaining].slice(0, count);
+    }
 
     setSessionQueue(queue);
     setCurrentIndex(0);
@@ -575,11 +582,10 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
               <button
                 key={tab.id}
                 onClick={() => setStudyMode(tab.id as StudyModeMimikara)}
-                className={`pb-2.5 px-2 font-medium transition-all relative ${
-                  studyMode === tab.id
-                    ? 'text-app-text border-b-2 border-app-accent font-semibold'
-                    : 'text-app-muted hover:text-app-text'
-                }`}
+                className={`pb-2.5 px-2 font-medium transition-all relative ${studyMode === tab.id
+                  ? 'text-app-text border-b-2 border-app-accent font-semibold'
+                  : 'text-app-muted hover:text-app-text'
+                  }`}
               >
                 {tab.label}
               </button>
@@ -813,11 +819,10 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                   <button
                     type="button"
                     onClick={() => setScopeMode('unit')}
-                    className={`px-4 py-2 rounded-xl text-xs font-medium border notebook-fade ${
-                      scopeMode === 'unit'
-                        ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
-                        : 'border-app-border bg-app text-app-muted hover:text-app-text'
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-xs font-medium border notebook-fade ${scopeMode === 'unit'
+                      ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
+                      : 'border-app-border bg-app text-app-muted hover:text-app-text'
+                      }`}
                   >
                     Học theo Unit (15 Unit)
                   </button>
@@ -825,11 +830,10 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                   <button
                     type="button"
                     onClick={() => setScopeMode('range')}
-                    className={`px-4 py-2 rounded-xl text-xs font-medium border notebook-fade ${
-                      scopeMode === 'range'
-                        ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
-                        : 'border-app-border bg-app text-app-muted hover:text-app-text'
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-xs font-medium border notebook-fade ${scopeMode === 'range'
+                      ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
+                      : 'border-app-border bg-app text-app-muted hover:text-app-text'
+                      }`}
                   >
                     Học theo khoảng STT (1 - 880)
                   </button>
@@ -924,11 +928,10 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                       key={st.id}
                       type="button"
                       onClick={() => setSelectedStatus(st.id as any)}
-                      className={`p-2.5 rounded-lg border text-xs text-left transition-all ${
-                        selectedStatus === st.id
-                          ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
-                          : 'border-app-border bg-app hover:border-app-muted text-app-muted hover:text-app-text'
-                      }`}
+                      className={`p-2.5 rounded-lg border text-xs text-left transition-all ${selectedStatus === st.id
+                        ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
+                        : 'border-app-border bg-app hover:border-app-muted text-app-muted hover:text-app-text'
+                        }`}
                     >
                       {st.label}
                     </button>
@@ -1039,9 +1042,8 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                           <button
                             type="button"
                             onClick={() => onToggleStar(item)}
-                            className={`mt-1 p-1 rounded hover:bg-app-surface transition-colors cursor-pointer ${
-                              isStarred ? 'text-amber-500' : 'text-app-muted/40 hover:text-amber-500'
-                            }`}
+                            className={`mt-1 p-1 rounded hover:bg-app-surface transition-colors cursor-pointer ${isStarred ? 'text-amber-500' : 'text-app-muted/40 hover:text-amber-500'
+                              }`}
                             title="Đánh dấu sao"
                           >
                             <StarIcon size={14} />
@@ -1602,18 +1604,16 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                         <div
                           key={item.id || idx}
                           onClick={() => jumpToIndex(idx)}
-                          className={`p-3 text-xs sm:text-sm flex items-center justify-between gap-3 cursor-pointer transition-colors ${
-                            isCurrent
-                              ? 'bg-app-accent/10 border-l-4 border-l-app-accent font-medium'
-                              : 'hover:bg-app/70 bg-app-surface'
-                          }`}
+                          className={`p-3 text-xs sm:text-sm flex items-center justify-between gap-3 cursor-pointer transition-colors ${isCurrent
+                            ? 'bg-app-accent/10 border-l-4 border-l-app-accent font-medium'
+                            : 'hover:bg-app/70 bg-app-surface'
+                            }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono shrink-0 ${
-                              isCurrent
-                                ? 'bg-app-accent text-white font-bold'
-                                : 'bg-app border border-app-border text-app-muted'
-                            }`}>
+                            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono shrink-0 ${isCurrent
+                              ? 'bg-app-accent text-white font-bold'
+                              : 'bg-app border border-app-border text-app-muted'
+                              }`}>
                               {idx + 1}
                             </span>
                             <span className="text-xs text-app-muted font-mono shrink-0">
