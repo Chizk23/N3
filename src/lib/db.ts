@@ -66,18 +66,36 @@ class DatabaseManager {
     return tx.objectStore(storeName);
   }
 
-  // --- VOCABULARY ---
+  // --- VOCABULARY (1.262 TỪ: 911 TỪ BỘ A + 351 TỪ BỘ B) ---
   public async getAllVocab(): Promise<VocabItem[]> {
     try {
       const store = await this.getStore('vocab', 'readonly');
       return new Promise((resolve, reject) => {
         const req = store.getAll();
         req.onsuccess = () => {
-          const items: VocabItem[] = req.result || [];
-          if (items.length === 0) {
-            this.saveVocabBatch(SAMPLE_VOCAB).then(() => resolve(SAMPLE_VOCAB));
+          let items: VocabItem[] = req.result || [];
+          
+          const versionKey = 'VOCAB_DATA_VERSION_KEY';
+          let isVersionMatch = false;
+          try {
+            isVersionMatch = localStorage.getItem(versionKey) === '20261121_full_vocab_1262_v1';
+          } catch {}
+
+          const isOutdated = items.length < 1262 || !isVersionMatch;
+
+          if (isOutdated) {
+            console.log('Đang làm mới cơ sở dữ liệu 1.262 từ vựng N3 (Bộ A 911 từ + Bộ B 351 từ)...');
+            this.saveVocabBatch(SAMPLE_VOCAB, true).then(() => {
+              try {
+                localStorage.setItem(versionKey, '20261121_full_vocab_1262_v1');
+              } catch {}
+              resolve(SAMPLE_VOCAB);
+            });
           } else {
-            items.sort((a, b) => a.stt - b.stt);
+            items.sort((a, b) => {
+              if (a.deck !== b.deck) return a.deck.localeCompare(b.deck);
+              return a.stt - b.stt;
+            });
             resolve(items);
           }
         };
@@ -86,6 +104,14 @@ class DatabaseManager {
     } catch {
       return SAMPLE_VOCAB;
     }
+  }
+
+  public async resetVocabDatabase(): Promise<VocabItem[]> {
+    await this.saveVocabBatch(SAMPLE_VOCAB, true);
+    try {
+      localStorage.setItem('VOCAB_DATA_VERSION_KEY', '20261121_full_vocab_1262_v1');
+    } catch {}
+    return SAMPLE_VOCAB;
   }
 
   public async saveVocabBatch(items: VocabItem[], replace = false): Promise<void> {
@@ -466,6 +492,10 @@ class DatabaseManager {
     await this.saveVocabBatch(SAMPLE_VOCAB);
     await this.saveGrammarBatch(SAMPLE_GRAMMAR);
     await this.saveMimikaraBatch(MIMIKARA_880_DATA);
+    try {
+      localStorage.setItem('VOCAB_DATA_VERSION_KEY', '20261121_full_vocab_1262_v1');
+      localStorage.setItem('MIMIKARA_DATA_VERSION_KEY', '20261120_rich_units_v5');
+    } catch {}
   }
 }
 

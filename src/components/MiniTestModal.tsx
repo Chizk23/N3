@@ -82,7 +82,7 @@ export const MiniTestModal: React.FC<MiniTestModalProps> = ({
   const vocabDecks = [
     { value: 'all', label: 'Tất cả từ vựng (A911 & B349)' },
     { value: 'A911', label: 'Từ vựng cốt lõi A911 (911 từ)' },
-    { value: 'B349', label: 'Từ vựng nâng cao B349 (349 từ)' }
+    { value: 'B349', label: 'Từ vựng nâng cao B349 (351 từ)' }
   ];
 
   // Maximum STT calculation for range inputs

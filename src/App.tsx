@@ -183,6 +183,17 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleResetVocab = async () => {
+    try {
+      const refreshed = await dbManager.resetVocabDatabase();
+      setVocabList([...refreshed]);
+      alert('Đã nạp lại thành công toàn bộ 1.262 từ vựng N3 (Bộ A 911 từ + Bộ B 351 từ) vào database!');
+    } catch (err) {
+      console.error(err);
+      alert('Có lỗi khi làm mới database từ vựng: ' + String(err));
+    }
+  };
+
   const handleImportVocab = async (items: VocabItem[], replace: boolean) => {
     await dbManager.saveVocabBatch(items, replace);
     const all = await dbManager.getAllVocab();
@@ -260,6 +271,7 @@ export const App: React.FC = () => {
             progressMap={progressMap}
             onUpdateProgress={handleUpdateProgress}
             onToggleStar={handleToggleStar}
+            onReloadDatabase={handleResetVocab}
             initialDeck={activeVocabDeck}
             cardsPerSession={settings.vocabCardsPerSession || settings.cardsPerSession || 20}
             onUpdateCardsPerSession={(count) => handleUpdateSettings({ ...settings, vocabCardsPerSession: count })}

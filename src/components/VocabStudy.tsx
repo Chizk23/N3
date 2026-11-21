@@ -41,6 +41,7 @@ interface VocabStudyProps {
   progressMap: Record<string, Progress>;
   onUpdateProgress: (key: string, updated: Progress, isCorrect: boolean) => void;
   onToggleStar: (item: VocabItem) => void;
+  onReloadDatabase?: () => Promise<void>;
   initialDeck?: 'A911' | 'B349' | 'all';
   cardsPerSession?: number;
   onUpdateCardsPerSession?: (count: number) => void;
@@ -52,6 +53,7 @@ export const VocabStudy: React.FC<VocabStudyProps> = ({
   progressMap,
   onUpdateProgress,
   onToggleStar,
+  onReloadDatabase,
   initialDeck = 'all',
   cardsPerSession = 20,
   onUpdateCardsPerSession,
@@ -65,6 +67,21 @@ export const VocabStudy: React.FC<VocabStudyProps> = ({
   const [typingType, setTypingType] = useState<VocabTypingType>('meaning_to_kana');
   const [currentTypingDirection, setCurrentTypingDirection] = useState<'meaning_to_kana' | 'kanji_to_reading' | 'kanji_to_meaning'>('meaning_to_kana');
   const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
+  const [isReloading, setIsReloading] = useState<boolean>(false);
+
+  const handleReloadDatabase = async () => {
+    if (!onReloadDatabase) return;
+    const confirm = window.confirm(
+      'Bạn có chắc chắn muốn nạp lại toàn bộ 1.262 từ vựng N3 chuẩn (Bộ A 911 từ + Bộ B 351 từ) vào database không?'
+    );
+    if (!confirm) return;
+    try {
+      setIsReloading(true);
+      await onReloadDatabase();
+    } finally {
+      setIsReloading(false);
+    }
+  };
 
   // Scope filter: All vs Range STT
   const [scopeType, setScopeType] = useState<'all' | 'range'>('all');
@@ -72,7 +89,7 @@ export const VocabStudy: React.FC<VocabStudyProps> = ({
   const [rangeTo, setRangeTo] = useState<number>(50);
 
   const maxSTT = useMemo(() => {
-    if (selectedDeck === 'B349') return 349;
+    if (selectedDeck === 'B349') return 351;
     return 911;
   }, [selectedDeck]);
 
@@ -87,7 +104,7 @@ export const VocabStudy: React.FC<VocabStudyProps> = ({
         { label: '1 - 50', from: 1, to: 50 },
         { label: '51 - 100', from: 51, to: 100 },
         { label: '101 - 200', from: 101, to: 200 },
-        { label: '201 - 349', from: 201, to: 349 }
+        { label: '201 - 351', from: 201, to: 351 }
       ];
     }
     return [
@@ -409,13 +426,28 @@ export const VocabStudy: React.FC<VocabStudyProps> = ({
   if (!isSessionActive) {
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-medium text-app-text tracking-tight">
-            Học từ vựng N3
-          </h2>
-          <p className="text-sm text-app-muted mt-1">
-            Chọn bộ thẻ, loại từ và hình thức học lặp lại ngắt quãng
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-medium text-app-text tracking-tight">
+              Học từ vựng N3
+            </h2>
+            <p className="text-sm text-app-muted mt-1">
+              Chọn bộ thẻ, loại từ và hình thức học lặp lại ngắt quãng ({vocabList.length} từ có sẵn)
+            </p>
+          </div>
+
+          {onReloadDatabase && (
+            <button
+              type="button"
+              onClick={handleReloadDatabase}
+              disabled={isReloading}
+              className="px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:text-white hover:bg-emerald-600 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50/70 dark:bg-emerald-950/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50 self-start sm:self-auto"
+              title="Xóa cache và nạp lại toàn bộ 1.262 từ vựng N3 gốc vào IndexedDB"
+            >
+              <RefreshIcon size={14} className={isReloading ? 'animate-spin' : ''} />
+              <span>{isReloading ? 'Đang nạp...' : 'Nạp lại 1.262 từ gốc'}</span>
+            </button>
+          )}
         </div>
 
         <div className="border border-app-border rounded-2xl bg-app-surface p-6 sm:p-8 space-y-6 shadow-sm">
@@ -434,7 +466,7 @@ export const VocabStudy: React.FC<VocabStudyProps> = ({
               >
                 <option value="all">Tất cả bộ ({vocabList.length} từ)</option>
                 <option value="A911">Bộ A (911 từ vựng)</option>
-                <option value="B349">Bộ B (349 từ Kanji)</option>
+                <option value="B349">Bộ B (351 từ Kanji)</option>
               </select>
             </div>
 

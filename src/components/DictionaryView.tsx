@@ -403,9 +403,9 @@ export const DictionaryView: React.FC<DictionaryViewProps> = ({
                 onChange={e => { setSelectedDeck(e.target.value as any); setPage(1); }}
                 className="h-10 px-3 rounded-lg border border-app-border bg-app text-app-text text-xs sm:text-sm focus:outline-none focus:border-app-accent cursor-pointer shadow-sm"
               >
-                <option value="all">Tất cả bộ từ</option>
+                <option value="all">Tất cả bộ từ ({vocabList.length} từ)</option>
                 <option value="A911">Bộ A (911 từ vựng)</option>
-                <option value="B349">Bộ B (349 chữ Kanji)</option>
+                <option value="B349">Bộ B (351 chữ Kanji)</option>
               </select>
 
               <select

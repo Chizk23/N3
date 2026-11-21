@@ -8,6 +8,9 @@ export interface VocabItem {
   reading: string;       // えいよう (có thể nhiều cách đọc, ngăn bằng ／ 、 ,)
   meaning: string;       // tiếng Việt, có thể nhiều nghĩa ngăn bằng , hoặc ;
   pos: VocabPOS;         // theo nhóm trong bảng gốc
+  adjType?: "i" | "na";
+  sttInGroup?: number;
+  origin?: string;
   exampleJa: string;
   exampleVi: string;
   freq: number;          // Số lần xuất hiện
