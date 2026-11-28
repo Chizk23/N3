@@ -41,6 +41,14 @@ interface MimikaraStudyProps {
 }
 
 export type ScopeMode = 'unit' | 'range';
+type SessionOrder = 'sequential' | 'shuffle';
+
+const createUniqueQuizOptions = (correctAnswer: string, candidates: string[]): string[] => {
+  const uniqueDistractors = Array.from(new Set(candidates))
+    .filter((candidate) => candidate && candidate !== correctAnswer)
+    .slice(0, 3);
+  return shuffle([correctAnswer, ...uniqueDistractors]);
+};
 
 export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
   items,
@@ -61,6 +69,7 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
 
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'unlearned' | 'learned' | 'starred'>('all');
   const [customCount, setCustomCount] = useState<number>(cardsPerSession);
+  const [sessionOrder, setSessionOrder] = useState<SessionOrder>('sequential');
   const [studyMode, setStudyMode] = useState<StudyModeMimikara>('flashcard');
   const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
   const [isReloading, setIsReloading] = useState<boolean>(false);
@@ -94,7 +103,7 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
   const [sessionStats, setSessionStats] = useState<{ correct: number; wrong: number }>({ correct: 0, wrong: 0 });
   const [sessionFinished, setSessionFinished] = useState<boolean>(false);
-  const [showSessionList, setShowSessionList] = useState<boolean>(true);
+  const [showSessionList, setShowSessionList] = useState<boolean>(false);
 
   // Quiz state
   const [currentQuiz, setCurrentQuiz] = useState<QuizQuestion | null>(null);
@@ -186,16 +195,22 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
     return browseResults.slice(start, start + ITEMS_PER_PAGE);
   }, [browseResults, browsePage]);
 
+  useEffect(() => {
+    setBrowsePage((page) => Math.min(page, Math.max(1, totalBrowsePages)));
+  }, [totalBrowsePages]);
+
   // Start study session
   const startSession = () => {
     if (filteredItems.length === 0) return;
-    let queue: MimikaraItem[] = [];
+    const orderedItems = [...filteredItems].sort((a, b) => a.stt - b.stt);
+    let queue: MimikaraItem[];
+
     if (scopeMode === 'range') {
-      // Khi chọn theo khoảng STT: học TOÀN BỘ các từ trong khoảng đó theo đúng thứ tự STT
-      queue = [...filteredItems].sort((a, b) => a.stt - b.stt);
+      // Khi chọn theo khoảng STT: học toàn bộ từ, theo thứ tự hoặc xáo trộn tùy lựa chọn.
+      queue = sessionOrder === 'shuffle' ? shuffle(orderedItems) : orderedItems;
     } else {
       const count = Math.min(customCount || 20, filteredItems.length);
-      queue = shuffle([...filteredItems]).slice(0, count);
+      queue = (sessionOrder === 'shuffle' ? shuffle(orderedItems) : orderedItems).slice(0, count);
     }
 
     setSessionQueue(queue);
@@ -211,15 +226,20 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
   };
 
   const startSessionFromItem = (targetItem: MimikaraItem) => {
-    let queue: MimikaraItem[] = [];
-    if (scopeMode === 'range') {
-      const after = filteredItems.filter(it => it.stt >= targetItem.stt).sort((a, b) => a.stt - b.stt);
-      const before = filteredItems.filter(it => it.stt < targetItem.stt).sort((a, b) => a.stt - b.stt);
-      queue = [...after, ...before];
+    const remaining = filteredItems.filter(it => it.id !== targetItem.id);
+    let queue: MimikaraItem[];
+
+    if (sessionOrder === 'shuffle') {
+      queue = [targetItem, ...shuffle(remaining)];
     } else {
-      const remaining = filteredItems.filter(it => it.id !== targetItem.id);
+      const after = remaining.filter(it => it.stt > targetItem.stt).sort((a, b) => a.stt - b.stt);
+      const before = remaining.filter(it => it.stt < targetItem.stt).sort((a, b) => a.stt - b.stt);
+      queue = [targetItem, ...after, ...before];
+    }
+
+    if (scopeMode !== 'range') {
       const count = Math.min(customCount || 20, filteredItems.length);
-      queue = [targetItem, ...remaining].slice(0, count);
+      queue = queue.slice(0, count);
     }
 
     setSessionQueue(queue);
@@ -257,16 +277,15 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
     setSelectedAnswer(null);
     setIsAnswerSubmitted(false);
 
-    // Distractors
-    const others = items.filter((it) => it.id !== currentItem.id);
-    const shuffledOthers = shuffle(others).slice(0, 3);
+    // Shuffle the full pool first, then remove duplicate answer text.
+    const others = shuffle(items.filter((it) => it.id !== currentItem.id));
 
     if (studyMode === 'hanVietQuiz') {
       const isKanjiToHanViet = Math.random() > 0.35 && Boolean(currentItem.kanji && currentItem.hanViet);
 
       if (isKanjiToHanViet) {
         const correct = currentItem.hanViet;
-        const options = shuffle([correct, ...shuffledOthers.map((o) => o.hanViet || o.meaning)]);
+        const options = createUniqueQuizOptions(correct, others.map((o) => o.hanViet || o.meaning));
         setCurrentQuiz({
           id: `quiz-hv-${currentItem.id}`,
           type: 'hanviet',
@@ -281,10 +300,10 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
         });
       } else {
         const correct = `${currentItem.kanji || currentItem.reading} (${currentItem.reading})`;
-        const options = shuffle([
+        const options = createUniqueQuizOptions(
           correct,
-          ...shuffledOthers.map((o) => `${o.kanji || o.reading} (${o.reading})`)
-        ]);
+          others.map((o) => `${o.kanji || o.reading} (${o.reading})`)
+        );
         setCurrentQuiz({
           id: `quiz-hv-rev-${currentItem.id}`,
           type: 'hanviet-rev',
@@ -300,7 +319,7 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
       }
     } else if (studyMode === 'meaningQuiz') {
       const correct = currentItem.meaning;
-      const options = shuffle([correct, ...shuffledOthers.map((o) => o.meaning)]);
+      const options = createUniqueQuizOptions(correct, others.map((o) => o.meaning));
       setCurrentQuiz({
         id: `quiz-mean-${currentItem.id}`,
         type: 'meaning',
@@ -315,7 +334,7 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
       });
     } else if (studyMode === 'readingQuiz') {
       const correct = currentItem.reading;
-      const options = shuffle([correct, ...shuffledOthers.map((o) => o.reading)]);
+      const options = createUniqueQuizOptions(correct, others.map((o) => o.reading));
       setCurrentQuiz({
         id: `quiz-read-${currentItem.id}`,
         type: 'reading',
@@ -489,6 +508,13 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
         } else if (e.key === 'ArrowLeft') {
           e.preventDefault();
           goToPrev();
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (typingFeedback !== null) {
+            goToNext();
+          } else {
+            handleTypingSubmit();
+          }
         }
       }
     };
@@ -957,11 +983,10 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                           setCustomCount(num);
                           if (onUpdateCardsPerSession) onUpdateCardsPerSession(num);
                         }}
-                        className={`py-2 rounded-lg border text-xs font-medium text-center transition-all ${
-                          customCount === num
-                            ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
-                            : 'border-app-border bg-app hover:border-app-muted text-app-muted hover:text-app-text'
-                        }`}
+                        className={`py-2 rounded-lg border text-xs font-medium text-center transition-all ${customCount === num
+                          ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
+                          : 'border-app-border bg-app hover:border-app-muted text-app-muted hover:text-app-text'
+                          }`}
                       >
                         {num} từ
                       </button>
@@ -969,6 +994,39 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Session order */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-app-muted uppercase tracking-wider">
+                  <span>{scopeMode === 'range' ? '3' : '4'}. Thứ tự xuất hiện</span>
+                  <span className="text-app-accent normal-case font-medium">
+                    {sessionOrder === 'shuffle' ? 'Mỗi phiên là một thứ tự mới' : 'Tăng dần theo STT'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSessionOrder('sequential')}
+                    className={`py-2.5 px-3 rounded-lg border text-xs font-medium transition-all ${sessionOrder === 'sequential'
+                      ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
+                      : 'border-app-border bg-app hover:border-app-muted text-app-muted hover:text-app-text'
+                      }`}
+                  >
+                    Theo thứ tự STT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSessionOrder('shuffle')}
+                    className={`py-2.5 px-3 rounded-lg border text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${sessionOrder === 'shuffle'
+                      ? 'border-app-accent bg-app-accent-subtle text-app-text font-semibold ring-1 ring-app-accent'
+                      : 'border-app-border bg-app hover:border-app-muted text-app-muted hover:text-app-text'
+                      }`}
+                  >
+                    <RefreshIcon size={14} />
+                    Xáo trộn
+                  </button>
+                </div>
+              </div>
 
               {/* Action Start */}
               <div className="pt-2">
@@ -1011,8 +1069,12 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  onChange={e => {
+                    setSearchQuery(e.target.value);
+                    setBrowsePage(1);
+                  }}
                   placeholder="Tìm từ vựng, kanji, nghĩa..."
+                  aria-label="Tìm trong danh sách Mimikara"
                   className="w-full h-9 px-3 rounded-lg border border-app-border bg-app text-xs text-app-text placeholder:text-app-muted focus:outline-none focus:border-app-accent"
                 />
               </div>
@@ -1024,7 +1086,7 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                   Không tìm thấy từ vựng nào phù hợp với từ khóa tìm kiếm.
                 </div>
               ) : (
-                browseResults.map((item) => {
+                pagedBrowseItems.map((item) => {
                   const progKey = getProgressKey(item);
                   const isStarred = progressMap[progKey]?.starred;
                   const box = progressMap[progKey]?.box || 0;
@@ -1044,9 +1106,10 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                             onClick={() => onToggleStar(item)}
                             className={`mt-1 p-1 rounded hover:bg-app-surface transition-colors cursor-pointer ${isStarred ? 'text-amber-500' : 'text-app-muted/40 hover:text-amber-500'
                               }`}
-                            title="Đánh dấu sao"
+                            title={isStarred ? 'Bỏ đánh dấu sao' : 'Đánh dấu sao'}
+                            aria-label={isStarred ? `Bỏ đánh dấu ${item.kanji || item.reading}` : `Đánh dấu ${item.kanji || item.reading}`}
                           >
-                            <StarIcon size={14} />
+                            <StarIcon size={14} filled={Boolean(isStarred)} />
                           </button>
                         </div>
 
@@ -1099,6 +1162,30 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                 })
               )}
             </div>
+
+            {totalBrowsePages > 1 && (
+              <div className="pt-3 border-t border-app-border flex items-center justify-between gap-3 text-xs text-app-muted">
+                <button
+                  type="button"
+                  onClick={() => setBrowsePage((page) => Math.max(1, page - 1))}
+                  disabled={browsePage === 1}
+                  className="px-3 py-2 rounded-lg border border-app-border bg-app hover:border-app-accent disabled:opacity-40"
+                >
+                  ← Trang trước
+                </button>
+                <span aria-live="polite">
+                  Trang <strong className="text-app-text">{browsePage}</strong> / {totalBrowsePages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBrowsePage((page) => Math.min(totalBrowsePages, page + 1))}
+                  disabled={browsePage >= totalBrowsePages}
+                  className="px-3 py-2 rounded-lg border border-app-border bg-app hover:border-app-accent disabled:opacity-40"
+                >
+                  Trang sau →
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1170,7 +1257,7 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
               </div>
 
               {/* Quick Navigation Control Bar */}
-              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-app border border-app-border text-xs sm:text-sm">
+              <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 p-2 rounded-xl bg-app border border-app-border text-xs sm:text-sm">
                 <button
                   type="button"
                   onClick={goToPrev}
@@ -1182,7 +1269,7 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
                   <span>Lùi (←)</span>
                 </button>
 
-                <div className="flex items-center gap-2">
+                <div className="order-3 sm:order-none w-full sm:w-auto flex items-center justify-center gap-2">
                   <span className="text-xs text-app-muted">
                     Thẻ <strong className="text-app-text font-bold">{currentIndex + 1}</strong> / {sessionQueue.length}
                   </span>
@@ -1530,7 +1617,7 @@ export const MimikaraStudy: React.FC<MimikaraStudyProps> = ({
 
                     {/* Feedback */}
                     {typingFeedback !== null && (
-                      <div className="mt-3 p-3.5 rounded-xl border text-xs sm:text-sm animate-fade-in text-left space-y-1.5">
+                      <div role="status" aria-live="polite" className="mt-3 p-3.5 rounded-xl border text-xs sm:text-sm animate-fade-in text-left space-y-1.5">
                         {typingFeedback === 'correct' ? (
                           <span className="text-emerald-600 font-medium flex items-center gap-1.5">
                             <CheckIcon size={16} /> Chính xác!

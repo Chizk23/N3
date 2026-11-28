@@ -190,7 +190,7 @@ export const ImportView: React.FC<ImportViewProps> = ({
             >
               <option value="grammar">Bộ C: 230 Ngữ pháp N3</option>
               <option value="A911">Bộ A: 911 Từ vựng N3</option>
-              <option value="B349">Bộ B: 349 Từ Kanji N3</option>
+              <option value="B349">Bộ B: 351 Từ Kanji N3</option>
             </select>
           </div>
 

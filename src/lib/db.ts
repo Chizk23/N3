@@ -2,6 +2,7 @@ import { VocabItem, GrammarItem, MimikaraItem, Progress, DailyStat, AppSettings 
 import { SAMPLE_VOCAB, SAMPLE_GRAMMAR } from '../data/sampleData';
 import { MIMIKARA_880_DATA } from '../data/mimikara880';
 import { createInitialProgress, getProgressKey } from './srs';
+import { getLocalDateKey } from './date';
 
 const DB_NAME = 'JLPT_N3_MASTER_DB';
 const DB_VERSION = 2;
@@ -330,21 +331,31 @@ class DatabaseManager {
   // --- STATS ---
   public async recordDailyStudy(isCorrect: boolean): Promise<void> {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const store = await this.getStore('stats', 'readwrite');
-      const req = store.get(today);
-      req.onsuccess = () => {
-        const stat: DailyStat = req.result || {
-          date: today,
-          studiedCount: 0,
-          correctCount: 0,
-          wrongCount: 0
+      const today = getLocalDateKey();
+      const db = await this.initDB();
+
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('stats', 'readwrite');
+        const store = tx.objectStore('stats');
+        const req = store.get(today);
+
+        req.onsuccess = () => {
+          const stat: DailyStat = req.result || {
+            date: today,
+            studiedCount: 0,
+            correctCount: 0,
+            wrongCount: 0
+          };
+          stat.studiedCount += 1;
+          if (isCorrect) stat.correctCount += 1;
+          else stat.wrongCount += 1;
+          store.put(stat);
         };
-        stat.studiedCount += 1;
-        if (isCorrect) stat.correctCount += 1;
-        else stat.wrongCount += 1;
-        store.put(stat);
-      };
+        req.onerror = () => reject(req.error);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
     } catch (e) {
       console.error('Failed to record stats', e);
     }

@@ -41,6 +41,11 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
+  :focus-visible {
+    outline: 3px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+
   /* Force all inputs to have high contrast text matching current theme */
   input, textarea, select, button {
     color: var(--color-text);

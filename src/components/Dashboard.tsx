@@ -190,7 +190,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span>880 Từ vựng Mimikara</span>
               </h3>
               <p className="text-xs text-app-muted leading-relaxed">
-                Giáo trình Mimikara Oboeru N3 kèm Âm Hán Việt, phân chia 7 Unit và 5 chế độ học chuyên biệt (Flashcard, Đố Hán Việt, Trắc nghiệm, Gõ từ).
+                Giáo trình Mimikara Oboeru N3 kèm Âm Hán Việt, phân chia 15 nhóm bài và 5 chế độ học chuyên biệt (Flashcard, Đố Hán Việt, Trắc nghiệm, Gõ từ).
               </p>
             </div>
 
@@ -281,7 +281,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
               <h3 className="text-lg font-medium text-app-text flex items-center gap-2">
                 <BookIcon size={18} className="text-purple-500" />
-                <span>349 Từ Kanji N3</span>
+                <span>351 Từ Kanji N3</span>
               </h3>
               <p className="text-xs text-app-muted leading-relaxed">
                 Tập trung nhận diện mặt chữ Kanji. Đồng bộ tiến độ với Bộ A theo từ và cách đọc.

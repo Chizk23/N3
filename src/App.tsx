@@ -9,6 +9,7 @@ import {
 } from './types';
 import { dbManager } from './lib/db';
 import { getProgressKey } from './lib/srs';
+import { diffDateKeys, getLocalDateKey, shiftDateKey } from './lib/date';
 import { Navbar, TabType } from './components/Navbar';
 import { Dashboard } from './components/Dashboard';
 import { VocabStudy } from './components/VocabStudy';
@@ -87,19 +88,19 @@ export const App: React.FC = () => {
   const streak = useMemo(() => {
     if (stats.length === 0) return 0;
     const sorted = [...stats].sort((a, b) => b.date.localeCompare(a.date));
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const today = getLocalDateKey();
+    const yesterday = shiftDateKey(today, -1);
 
     if (sorted[0].date !== today && sorted[0].date !== yesterday) {
       return 0;
     }
 
     let count = 1;
-    let prevDate = new Date(sorted[0].date);
+    let prevDate = sorted[0].date;
 
     for (let i = 1; i < sorted.length; i++) {
-      const curDate = new Date(sorted[i].date);
-      const diffDays = Math.round((prevDate.getTime() - curDate.getTime()) / (1000 * 60 * 60 * 24));
+      const curDate = sorted[i].date;
+      const diffDays = diffDateKeys(prevDate, curDate);
       if (diffDays === 1) {
         count++;
         prevDate = curDate;
@@ -246,9 +247,12 @@ export const App: React.FC = () => {
         onToggleDarkMode={handleToggleDarkMode}
         onOpenMiniTest={() => setIsMiniTestOpen(true)}
         dueTodayCount={dueTodayCount}
+        vocabCount={vocabList.length}
+        grammarCount={grammarList.length}
+        mimikaraCount={mimikaraList.length}
       />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-8 py-8 pb-24 sm:pb-16">
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-8 py-8 pb-24 sm:pb-16">
         {currentTab === 'dashboard' && (
           <Dashboard
             vocabList={vocabList}

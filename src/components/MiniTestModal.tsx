@@ -227,8 +227,6 @@ export const MiniTestModal: React.FC<MiniTestModalProps> = ({
     }
   }, [isOpen, questions.length]);
 
-  if (!isOpen) return null;
-
   const currentQ = questions[currentIndex];
 
   const handleSelectOption = (opt: string) => {
@@ -265,9 +263,49 @@ export const MiniTestModal: React.FC<MiniTestModalProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (isConfiguring || isFinished || !currentQ) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
+
+      if (['1', '2', '3', '4'].includes(event.key)) {
+        const option = currentQ.options[Number(event.key) - 1];
+        if (option) {
+          event.preventDefault();
+          handleSelectOption(option);
+        }
+      } else if (event.key === 'Enter' && userAnswers[currentIndex]) {
+        event.preventDefault();
+        if (currentIndex < questions.length - 1) {
+          setCurrentIndex((index) => index + 1);
+        } else {
+          finishTest();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isConfiguring, isFinished, currentQ, currentIndex, questions.length, userAnswers, onClose]);
+
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-app-surface border border-app-border rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col notebook-fade overflow-hidden shadow-2xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mini-test-title"
+        className="bg-app-surface border border-app-border rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col notebook-fade overflow-hidden shadow-2xl"
+      >
         
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4.5 border-b border-app-border bg-app">
@@ -276,7 +314,7 @@ export const MiniTestModal: React.FC<MiniTestModalProps> = ({
               <TimerIcon size={22} />
             </div>
             <div>
-              <div className="text-base font-medium text-app-text">
+              <div id="mini-test-title" className="text-base font-medium text-app-text">
                 {isConfiguring ? 'Thiết lập bài thi thử JLPT N3' : 'Thi thử JLPT N3'}
               </div>
               <div className="text-xs text-app-muted">
@@ -299,16 +337,18 @@ export const MiniTestModal: React.FC<MiniTestModalProps> = ({
                   <SettingsIcon size={14} />
                   <span>Cài đặt đề</span>
                 </button>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-app-border bg-app-surface text-xs font-mono font-medium text-app-text shadow-sm">
+                <div aria-live="polite" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-app-border bg-app-surface text-xs font-mono font-medium text-app-text shadow-sm">
                   <TimerIcon size={14} className="text-app-muted" />
                   <span>{formatTime(timeLeft)}</span>
                 </div>
               </>
             )}
             <button
+              type="button"
               onClick={onClose}
               className="w-8 h-8 rounded-lg border border-app-border hover:bg-app flex items-center justify-center text-app-muted hover:text-app-text transition-colors"
               title="Đóng"
+              aria-label="Đóng bài thi thử"
             >
               <CloseIcon size={16} />
             </button>
@@ -319,6 +359,11 @@ export const MiniTestModal: React.FC<MiniTestModalProps> = ({
         {!isConfiguring && !isFinished && questions.length > 0 && (
           <div className="w-full h-1.5 bg-app border-b border-app-border">
             <div
+              role="progressbar"
+              aria-label={`Tiến độ bài thi: câu ${currentIndex + 1} trên ${questions.length}`}
+              aria-valuemin={1}
+              aria-valuemax={questions.length}
+              aria-valuenow={currentIndex + 1}
               className="h-full bg-app-accent notebook-fade"
               style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
             />
@@ -537,7 +582,7 @@ export const MiniTestModal: React.FC<MiniTestModalProps> = ({
                       />
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 pt-1">
+                  <div className="flex items-center gap-2 pt-1 flex-wrap">
                     {[
                       { label: '1 - 50', from: 1, to: 50 },
                       { label: '51 - 100', from: 51, to: 100 },
@@ -659,6 +704,7 @@ export const MiniTestModal: React.FC<MiniTestModalProps> = ({
                         key={idx}
                         type="button"
                         onClick={() => handleSelectOption(opt)}
+                        aria-pressed={isSelected}
                         className={`w-full text-left p-4 sm:p-4.5 rounded-xl border text-sm sm:text-base font-jp font-normal notebook-fade flex items-center justify-between transition-all ${
                           isSelected
                             ? 'border-app-accent text-app-text bg-app-accent-subtle font-medium shadow-sm ring-1 ring-app-accent'
@@ -675,6 +721,9 @@ export const MiniTestModal: React.FC<MiniTestModalProps> = ({
                     );
                   })}
                 </div>
+                <p className="text-center text-[11px] text-app-muted">
+                  Phím 1–4 để chọn đáp án · Enter để sang câu tiếp theo · Esc để đóng
+                </p>
               </div>
             ) : null
           ) : (
